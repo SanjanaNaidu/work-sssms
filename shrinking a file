@@ -1,4 +1,4 @@
-dbcc sqlperf(logspaceP
+dbcc sqlperf(logspace)
 
 
 use dbBirdie
