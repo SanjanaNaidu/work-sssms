@@ -1,0 +1,7 @@
+dbcc sqlperf(logspaceP
+
+
+use dbBirdie
+dbcc opentran
+dbcc shrinkfile(2,5000)
+sp_helpdb
