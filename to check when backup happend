@@ -1,0 +1,268 @@
+SET NOCOUNT ON
+declare @check int
+set @check=24 -- In hours, based on  backup status will be updated, if no full or 
+
+ 
+
+
+declare @CheckTlog int
+set @CheckTlog=4 -- In hours, based on  tlog backup, status will be updated. 
+
+ 
+
+declare @LastFullBackup datetime
+declare @LastDiffBackup datetime
+declare @lastTlogBackup datetime
+declare @NotBackedupSinceHrs int
+
+ 
+
+declare @NoTLogSince int
+declare @status nvarchar(40)
+declare @Recovery nvarchar(20)
+declare @TlogBkpStatus nvarchar(40)
+declare @dbstatus nvarchar(30)
+
+ 
+
+
+declare @FinalAge int
+declare @hf int
+declare @hd int
+declare @hl int
+declare @ServerName nvarchar(60)
+declare @dbname nvarchar(60)
+
+ 
+
+
+DECLARE @table1 table (Servername nvarchar(60),  DBName nvarchar(60),LastFullBackup datetime, 
+LastDiffBackup datetime,NotBackedUpSince int,dbstatus nvarchar(30), [Status] nvarchar(40),lastTlogBackup datetime,
+ [Recovery] varchar(20),NoTLogSince int,TlogBkpStatus nvarchar(40))
+
+ 
+
+declare c1 cursor for Select Distinct convert(varchar(60),@@Servername) as Servername,
+   convert(varchar(60),e.database_name) as DBname,
+   (Select  convert(varchar(25),Max(backup_finish_date) , 100) 
+   FROM msdb..backupset a Where a.database_name=e.database_name
+
+ 
+
+and a.server_name  = @@servername and type='D' 
+
+ 
+
+Group by a.database_name) Last_FullBackup,
+(Select convert(varchar(25),Max(backup_finish_date) , 100) From msdb..backupset c 
+Where c.database_name=e.database_name and c.server_name  = @@servername 
+and type='I' Group by c.database_name) Last_Diff_Backup, NULL as NotBackedUpSinceHrs, NULL as [DBStatus],
+NULL as [Status], (Select convert(varchar(25),Max(backup_finish_date),100) 
+From msdb..backupset c Where c.database_name=e.database_name 
+and c.server_name  = @@servername
+
+ 
+
+and type='L' Group by c.database_name) Last_Diff_Backup,
+convert(varchar(20),convert(sysname,DatabasePropertyEx (e.database_name,'Recovery'))) as Recovery,
+NULL, NULL as TlogBkpStatus From msdb..backupset e WHERE 
+e.server_name = @@Servername  and e.database_name not in ('tempdb')
+and e.database_name in (Select Distinct name from master..sysdatabases where dbid<>2)
+
+ 
+
+UNION ALL
+
+ 
+
+SELECT  DISTINCT convert(varchar(60),@@Servername) as Servername,
+convert(varchar(60),name) as DBname,NULL, NULL,NULL as NotBackedUpSinceHrs,NULL AS [DBStatus],
+NULL as [Status],NULL,convert(varchar(20),convert(sysname,DatabasePropertyEx(name,'Recovery'))),
+NULL,NULL from master..sysdatabases as record 
+
+ 
+
+WHERE name NOT IN (SELECT DISTINCT database_name FROM msdb..backupset) 
+and dbid<>2 ORDER BY 1,2 
+OPEN c1
+
+ 
+
+FETCH NEXT FROM c1 INTO @ServerName,@dbname,@LastFullBackup,@LastDiffBackup, 
+@NotBackedupSinceHrs,@dbstatus,@status,@lastTlogBackup,@Recovery, @NoTLogSince, @TlogBkpStatus
+
+ 
+
+
+WHILE @@FETCH_STATUS=0
+
+ 
+
+BEGIN
+
+ 
+
+IF (@LastFullBackup IS NULL)
+
+ 
+
+BEGIN
+
+ 
+
+set @LastFullBackup='1900-01-01 00:00:00.000'
+
+ 
+
+END
+
+ 
+
+IF (@LastDiffBackup IS NULL)
+
+ 
+
+BEGIN
+
+ 
+
+set @LastDiffBackup='1900-01-01 00:00:00.000'
+
+ 
+
+END
+
+ 
+
+IF (@lastTlogBackup IS NULL)
+
+ 
+
+BEGIN
+
+ 
+
+set @lastTlogBackup='1900-01-01 00:00:00.000'
+
+ 
+
+END
+
+ 
+
+select @hf=datediff(hh,@LastFullBackup,GETDATE())
+
+ 
+
+select @hd=datediff(hh,@LastDiffBackup,GETDATE())
+
+ 
+
+select @NoTLogSince=datediff(hh,@lastTlogBackup,GETDATE())
+
+ 
+
+IF (@hf<@hd)
+
+ 
+
+SET @FinalAge=@hf
+
+ 
+
+ELSE
+
+ 
+
+SET @FinalAge=@hd
+SET @NotBackedupSinceHrs=@FinalAge
+
+ 
+
+--set @dbstatus= null
+
+ 
+
+set @dbstatus=(select convert(varchar(20),DATABASEPROPERTYEX(@dbname,'status')))
+
+ 
+
+
+--UPDATE @table1 SET [Status]='DB in ' + @dbstatus +' state' where dbStatus<>'ONLINE'
+
+ 
+
+--print @dbstatus
+
+ 
+
+
+--print @dbname
+
+ 
+
+
+INSERT INTO @table1 values (@ServerName,@dbname,@LastFullBackup,@LastDiffBackup,
+@NotBackedupSinceHrs,@dbstatus,@status,@lastTlogBackup,@Recovery,@NoTLogSince,@TlogBkpStatus)
+
+ 
+
+--set @dbstatus= null
+
+ 
+
+UPDATE @table1 SET [Status] = CASE
+WHEN NotBackedUpSince <=@check   THEN 'Success'
+WHEN NotBackedUpSince > = @check THEN '!!! Failed, Action required !!!!'
+
+ 
+
+ END
+ --Print @dbstatus
+
+ 
+
+UPDATE @table1 SET Status=@dbstatus where dbstatus<>'ONLINE'
+
+ 
+
+UPDATE @table1 SET Status='Success'where DBName='master' and NotBackedUpSince< =@check +144
+UPDATE @table1 SET TlogBkpStatus=CASE
+WHEN NoTLogSince<=@CheckTlog THEN 'Success'
+WHEN NoTLogSince>=@CheckTlog THEN '!!! Failed, Action required !!!!'
+     END
+
+ 
+
+
+UPDATE @table1 SET TlogBkpStatus ='NA' where [Recovery]='SIMPLE' OR DBName='model'
+
+ 
+
+--print @dbstatus
+
+ 
+
+
+FETCH NEXT FROM c1 INTO @ServerName,@dbname,@LastFullBackup,@LastDiffBackup,
+@NotBackedupSinceHrs,@dbstatus,@status,
+@lastTlogBackup,@Recovery, @NoTLogSince,@TlogBkpStatus
+
+ 
+
+END
+
+ 
+
+UPDATE @table1 SET Status='Not in Online',TlogBkpStatus='Not in Online' where dbstatus <>'ONLINE'
+
+ 
+
+SELECT Servername as 'SQLInstanceName',DBName as 'DatabaseName',LastFullBackup,
+LastDiffBackup,NotBackedUpSince as 'LastBackup_Hrs',dbstatus,[Status] as 'Backup Status',lastTlogBackup , [Recovery] ,
+NoTLogSince,TlogBkpStatus FROM @table1 order by DBName 
+
+ 
+
+CLOSE c1
+DEALLOCATE c1
