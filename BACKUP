@@ -1,0 +1,29 @@
+BACKUP LOG/FULL/DIFFERENTIAL
+TO DISC ='PATH'
+GO
+
+BACKUP LOG AdventureWorks 
+TO DISK = 'C:\AdventureWorks.TRN'
+WITH PASSWORD = 'Q!W@E#R$'
+GO
+
+
+
+BACKUP LOG AdventureWorks 
+TO DISK = 'C:\AdventureWorks.TRN'
+WITH STATS
+GO
+
+
+
+
+
+Specifying multiple options for SQL Server Transaction Log backup
+This example shows how you can use multiple options at the same time.
+
+BACKUP LOG AdventureWorks 
+TO DISK = 'C:\AdventureWorks.TRN'
+MIRROR TO DISK =  'D:\AdventureWorks_mirror.TRN'
+WITH FORMAT, STATS, PASSWORD = 'Q!W@E#R$'
+GO
+
