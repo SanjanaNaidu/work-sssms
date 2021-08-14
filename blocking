@@ -1,0 +1,8 @@
+select * from sys.sysprocesses where blocked<>0
+
+
+
+
+
+
+DBSPI-3014: # of blocked processes 23.00 too high >=20 for 2 collection intervals for rpasqlgre01.resrc.entsvcs.com. [Policy: DBMON-DBSPI-3014-ARM
