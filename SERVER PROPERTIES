@@ -1,0 +1,21 @@
+SELECT
+SERVERPROPERTY('MachineName') AS ComputerName,
+SERVERPROPERTY('ServerName') AS InstanceName,
+SERVERPROPERTY('Edition') AS Edition,
+SERVERPROPERTY('ProductVersion') AS ProductVersion,
+SERVERPROPERTY('IsHadrEnabled') AS IsHadrEnabled,
+SERVERPROPERTY('IsClustered') AS IsClustered,
+SERVERPROPERTY('ProductLevel') AS ProductLevel;
+GO
+
+
+
+select create_date,name,state_desc from sys.databases
+
+
+
+Select * from sys.dm_server_services
+
+
+
+select sqlserver_start_time from sys.dm_os_sys_info
